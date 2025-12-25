@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Root Cause Analysis: The 5 Whys</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        'brand-dark': '#0f172a',
+                        'brand-blue': '#38bdf8', // Electric Blue
+                        'brand-orange': '#fb923c', // Vibrant Orange
+                        'brand-purple': '#818cf8',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Scrollbar Hiding */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Animation Classes */
+        .slide-content {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .active-slide .slide-content {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .active-slide .slide-content-delay-1 { transition-delay: 0.1s; }
+        .active-slide .slide-content-delay-2 { transition-delay: 0.3s; }
+        .active-slide .slide-content-delay-3 { transition-delay: 0.5s; }
+
+        /* Iceberg Illustration */
+        .iceberg-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+        }
+        .water-line {
+            position: absolute;
+            top: 30%;
+            width: 100%;
+            height: 2px;
+            background: #38bdf8;
+            opacity: 0.5;
+        }
+
+        /* Image Overlay Gradient */
+        .img-overlay {
+            background: linear-gradient(to top, rgba(15, 23, 42, 1) 10%, rgba(15, 23, 42, 0.6) 100%);
+        }
+        
+        /* Navigation Button Active State */
+        .nav-btn-active {
+            background-color: #38bdf8;
+            color: #0f172a;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.5);
+            transform: scale(1.1);
+            border-color: #38bdf8;
+        }
+    </style>
+</head>
+<body class="bg-brand-dark text-white overflow-hidden h-screen w-screen selection:bg-brand-orange selection:text-white">
+
+    <!-- Navigation Controls & Counter -->
+    <div class="fixed bottom-8 right-8 z-50 flex items-center gap-4 max-w-[90vw]">
+        
+        <!-- Expandable Slide Counter / Indicators -->
+        <!-- Default: Shows "1 / 13". Hover: Expands to show numbered buttons -->
+        <div class="group relative flex items-center justify-center h-14 bg-brand-dark/80 backdrop-blur-md border border-white/10 shadow-lg rounded-full transition-all duration-300 ease-out w-[120px] hover:w-[280px] overflow-hidden">
+            
+            <!-- Text Counter (Visible by default, fades out on hover) -->
+            <div class="absolute inset-0 flex items-center justify-center font-mono tracking-widest transition-all duration-300 group-hover:opacity-0 group-hover:translate-y-4 pointer-events-none">
+                <span id="currentSlideText" class="text-brand-blue font-bold text-xl">1</span>
+                <span class="text-white/30 mx-2 text-lg">/</span>
+                <span id="totalSlidesText" class="text-white/60 font-bold text-lg">--</span>
+            </div>
+
+            <!-- Scrollable Buttons (Hidden by default, fades in on hover) -->
+            <div id="slideIndicators" class="flex items-center gap-2 overflow-x-auto no-scrollbar absolute inset-0 px-4 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-4 group-hover:translate-y-0 pointer-events-none group-hover:pointer-events-auto">
+                <!-- Buttons will be injected here by JS -->
+            </div>
+        </div>
+
+        <!-- Arrows -->
+        <div class="flex gap-2 shrink-0">
+            <button onclick="prevSlide()" class="p-4 w-14 h-14 flex items-center justify-center rounded-full bg-white/10 hover:bg-brand-orange hover:text-white transition-all backdrop-blur-sm border border-white/10 shadow-lg group">
+                <i class="fa-solid fa-arrow-left group-hover:-translate-x-1 transition-transform"></i>
+            </button>
+            <button onclick="nextSlide()" class="p-4 w-14 h-14 flex items-center justify-center rounded-full bg-white/10 hover:bg-brand-blue hover:text-black transition-all backdrop-blur-sm border border-white/10 shadow-lg group">
+                <i class="fa-solid fa-arrow-right group-hover:translate-x-1 transition-transform"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="fixed top-0 left-0 w-full h-1 bg-white/10 z-50">
+        <div id="progressBar" class="h-full bg-gradient-to-r from-brand-blue to-brand-orange w-0 transition-all duration-300"></div>
+    </div>
+
+    <!-- Main Slider Container -->
+    <main id="slider" class="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory h-full w-full no-scrollbar scroll-smooth">
+
+        <!-- Slide 1: Title -->
+        <section class="min-w-full h-full snap-start flex flex-col justify-center items-center relative p-8 text-center bg-brand-dark overflow-hidden">
+            <!-- Background Image -->
+            <img src="https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&q=80&w=1920" alt="Tech Background" class="absolute inset-0 w-full h-full object-cover opacity-40">
+            <div class="absolute inset-0 img-overlay pointer-events-none"></div>
+
+            <div class="relative z-10">
+                <div class="slide-content slide-content-delay-1 mb-6">
+                    <i class="fa-solid fa-bullseye text-6xl md:text-8xl text-brand-orange mb-4 animate-bounce drop-shadow-[0_0_15px_rgba(251,146,60,0.5)]"></i>
+                </div>
+                <h1 class="slide-content slide-content-delay-2 text-5xl md:text-8xl font-black tracking-tighter mb-4 text-white drop-shadow-xl">
+                    FINDING THE<br><span class="text-brand-blue">ROOT CAUSE</span>
+                </h1>
+                <p class="slide-content slide-content-delay-3 text-xl md:text-3xl text-slate-200 font-light tracking-wide">
+                    The Art of the <span class="text-brand-orange font-bold">"5 Whys"</span>
+                </p>
+                <div class="slide-content slide-content-delay-3 mt-12 text-sm text-slate-400 animate-pulse uppercase tracking-widest">
+                    Use Arrow Keys or Swipe &rarr;
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 2: Concept -->
+        <section class="min-w-full h-full snap-start flex flex-col justify-center items-center relative p-8 text-center bg-[#111827]">
+            <div class="max-w-4xl w-full">
+                <div class="slide-content slide-content-delay-1 flex justify-center mb-8">
+                    <div class="w-24 h-24 rounded-full bg-brand-blue/20 flex items-center justify-center text-brand-blue border-2 border-brand-blue shadow-[0_0_30px_rgba(56,189,248,0.3)]">
+                        <i class="fa-solid fa-magnifying-glass text-4xl"></i>
+                    </div>
+                </div>
+                <h2 class="slide-content slide-content-delay-2 text-4xl md:text-6xl font-bold mb-6">
+                    Root Cause Analysis <span class="text-brand-blue">(RCA)</span>
+                </h2>
+                <p class="slide-content slide-content-delay-3 text-2xl text-slate-300 leading-relaxed">
+                    A method to peel back the layers of a problem using the <br><span class="text-white font-bold underline decoration-brand-orange decoration-4 underline-offset-4">"5 Whys"</span> technique.
+                </p>
+            </div>
+        </section>
+
+        <!-- Slide 3: Origin -->
+        <section class="min-w-full h-full snap-start flex flex-col md:flex-row items-center justify-center p-8 gap-12 bg-white/5 relative overflow-hidden">
+             <!-- Abstract Background -->
+             <img src="https://www.vmcdn.ca/f/files/localprofile/import/2022_07_Screen-Shot-2022-07-18-at-3.43.02-PM.jpg" class="absolute inset-0 w-full h-full object-cover opacity-10">
+            
+            <div class="slide-content slide-content-delay-1 w-full md:w-1/3 flex justify-center z-10">
+                <div class="w-72 h-72 relative rounded-2xl overflow-hidden border-4 border-brand-orange/30 shadow-2xl">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/2/2b/Sakichi_Toyoda.jpg" alt="" class="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700">
+                    <div class="absolute inset-0 flex items-center justify-center bg-black/30">
+                         <i class="fa-solid fa-user-gear text-6xl text-white/80"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="slide-content slide-content-delay-2 w-full md:w-1/2 text-center md:text-left z-10">
+                <div class="text-brand-blue font-bold tracking-widest uppercase mb-2">The Pioneer</div>
+                <h2 class="text-5xl md:text-7xl font-bold mb-6">Sakichi Toyoda</h2>
+                <p class="text-2xl text-slate-300 leading-relaxed">
+                    Founder of <span class="text-white font-bold">Toyota Industries</span>. He believed that by asking "Why?" five times, the nature of the problem as well as its solution becomes clear.
+                </p>
+            </div>
+        </section>
+
+        <!-- Slide 5: The Problem -->
+        <section class="min-w-full h-full snap-start flex flex-col justify-center items-center p-8 relative overflow-hidden bg-black">
+            <!-- Background Image -->
+            <img src="./robot_bg.png" alt="Robot Arm" class="absolute inset-0 w-full h-full object-cover opacity-50" onerror="this.src='https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=1920'">
+            <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black opacity-90"></div>
+
+            <div class="relative z-10 flex flex-col items-center">
+                <div class="slide-content slide-content-delay-1 mb-8">
+                    <div class="w-40 h-40 bg-red-600/20 rounded-full flex items-center justify-center border-4 border-red-500 animate-pulse backdrop-blur-sm">
+                        <i class="fa-solid fa-robot text-7xl text-red-500"></i>
+                    </div>
+                </div>
+                <h2 class="slide-content slide-content-delay-2 text-red-500 font-bold tracking-widest uppercase mb-2 bg-black/50 px-4 py-1 rounded">The Problem</h2>
+                <h3 class="slide-content slide-content-delay-3 text-4xl md:text-6xl font-bold text-center max-w-3xl drop-shadow-lg">
+                    "The factory welding robot stopped working."
+                </h3>
+            </div>
+        </section>
+
+        <!-- Slide 6: Why 1 (Split Layout: Image Left, Text Right) -->
+        <section class="min-w-full h-full snap-start flex flex-col md:flex-row bg-brand-dark">
+            <!-- Image Side -->
+            <div class="w-full md:w-1/2 h-1/2 md:h-full relative overflow-hidden group">
+                <img src="./fuse.png" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" onerror="this.src='https://images.unsplash.com/photo-1563725586617-640a32215c2a?auto=format&fit=crop&q=80&w=1000'">
+                <div class="absolute inset-0 bg-brand-blue/10 mix-blend-overlay"></div>
+            </div>
+            
+            <!-- Content Side -->
+            <div class="w-full md:w-1/2 h-1/2 md:h-full flex items-center justify-center p-8 relative bg-slate-900 border-t md:border-t-0 md:border-l border-white/10">
+                <div class="absolute top-1/2 right-10 transform -translate-y-1/2 text-[30vh] md:text-[40vh] font-black text-white/5 select-none z-0">1</div>
+                
+                <div class="relative z-10 text-center md:text-left max-w-lg">
+                    <div class="slide-content slide-content-delay-1 text-2xl md:text-3xl text-brand-orange font-bold mb-4 uppercase tracking-wider">Why did it stop?</div>
+                    <div class="slide-content slide-content-delay-2">
+                        <i class="fa-solid fa-car-battery text-5xl mb-6 text-slate-300"></i>
+                        <h2 class="text-5xl md:text-6xl font-bold text-white leading-tight">The fuse blew.</h2>
+                        <p class="mt-4 text-slate-400">A symptom of electrical failure.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 7: Why 2 (Split Layout: Text Left, Image Right) -->
+        <section class="min-w-full h-full snap-start flex flex-col-reverse md:flex-row bg-brand-dark">
+            <!-- Content Side -->
+            <div class="w-full md:w-1/2 h-1/2 md:h-full flex items-center justify-center p-8 relative bg-slate-900 border-t md:border-t-0 md:border-r border-white/10">
+                <div class="absolute top-1/2 left-10 transform -translate-y-1/2 text-[30vh] md:text-[40vh] font-black text-white/5 select-none z-0">2</div>
+                
+                <div class="relative z-10 text-center md:text-right max-w-lg w-full">
+                    <div class="slide-content slide-content-delay-1 text-2xl md:text-3xl text-brand-orange font-bold mb-4 uppercase tracking-wider">Why did the fuse blow?</div>
+                    <div class="slide-content slide-content-delay-2 flex flex-col items-center md:items-end">
+                        <i class="fa-solid fa-bolt text-5xl mb-6 text-yellow-400 animate-pulse"></i>
+                        <h2 class="text-5xl md:text-6xl font-bold text-white leading-tight">Circuit overloaded.</h2>
+                        <p class="mt-4 text-slate-400">Too much power drawn at once.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Image Side -->
+            <div class="w-full md:w-1/2 h-1/2 md:h-full relative overflow-hidden group">
+                <img src="./overload.png" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" onerror="this.src='https://images.unsplash.com/photo-1621252179027-94459d27d3ee?auto=format&fit=crop&q=80&w=1000'">
+                <div class="absolute inset-0 bg-red-500/10 mix-blend-overlay"></div>
+            </div>
+        </section>
+
+        <!-- Slide 8: Why 3 (Split Layout: Image Left, Text Right) -->
+        <section class="min-w-full h-full snap-start flex flex-col md:flex-row bg-brand-dark">
+            <!-- Image Side -->
+            <div class="w-full md:w-1/2 h-1/2 md:h-full relative overflow-hidden group">
+                <img src="./shaft.png" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" onerror="this.src='https://images.unsplash.com/photo-1537462715879-360eeb61a0ad?auto=format&fit=crop&q=80&w=1000'">
+                <div class="absolute inset-0 bg-brand-blue/10 mix-blend-overlay"></div>
+            </div>
+            
+            <!-- Content Side -->
+            <div class="w-full md:w-1/2 h-1/2 md:h-full flex items-center justify-center p-8 relative bg-slate-900 border-t md:border-t-0 md:border-l border-white/10">
+                <div class="absolute top-1/2 right-10 transform -translate-y-1/2 text-[30vh] md:text-[40vh] font-black text-white/5 select-none z-0">3</div>
+                
+                <div class="relative z-10 text-center md:text-left max-w-lg">
+                    <div class="slide-content slide-content-delay-1 text-2xl md:text-3xl text-brand-orange font-bold mb-4 uppercase tracking-wider">Why was it overloaded?</div>
+                    <div class="slide-content slide-content-delay-2">
+                        <i class="fa-solid fa-gear text-5xl mb-6 text-slate-400 fa-spin" style="animation-duration: 10s;"></i>
+                        <h2 class="text-5xl md:text-6xl font-bold text-white leading-tight">The shaft was straining.</h2>
+                        <p class="mt-4 text-slate-400">Mechanical resistance in the system.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 9: Why 4 (Split Layout: Text Left, Image Right) -->
+        <section class="min-w-full h-full snap-start flex flex-col-reverse md:flex-row bg-brand-dark">
+            <!-- Content Side -->
+            <div class="w-full md:w-1/2 h-1/2 md:h-full flex items-center justify-center p-8 relative bg-slate-900 border-t md:border-t-0 md:border-r border-white/10">
+                <div class="absolute top-1/2 left-10 transform -translate-y-1/2 text-[30vh] md:text-[40vh] font-black text-white/5 select-none z-0">4</div>
+                
+                <div class="relative z-10 text-center md:text-right max-w-lg w-full">
+                    <div class="slide-content slide-content-delay-1 text-2xl md:text-3xl text-brand-orange font-bold mb-4 uppercase tracking-wider">Why was it straining?</div>
+                    <div class="slide-content slide-content-delay-2 flex flex-col items-center md:items-end">
+                        <div class="relative inline-block mb-6">
+                            <i class="fa-solid fa-oil-can text-5xl text-slate-400"></i>
+                            <i class="fa-solid fa-xmark absolute -top-2 -right-4 text-3xl text-red-500 font-bold"></i>
+                        </div>
+                        <h2 class="text-5xl md:text-6xl font-bold text-white leading-tight">Insufficient Lubrication.</h2>
+                        <p class="mt-4 text-slate-400">Friction caused increased load.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Image Side -->
+            <div class="w-full md:w-1/2 h-1/2 md:h-full relative overflow-hidden group">
+                <img src="./no_lubricant.png" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" onerror="this.src='https://images.unsplash.com/photo-1518361139459-0df855a9b70a?auto=format&fit=crop&q=80&w=1000'">
+                <div class="absolute inset-0 bg-orange-500/10 mix-blend-overlay"></div>
+            </div>
+        </section>
+
+        <!-- Slide 10: Why 5 (Root Cause) - Split Layout: Image Left, Text Right -->
+        <section class="min-w-full h-full snap-start flex flex-col md:flex-row bg-brand-dark">
+            <!-- Image Side -->
+            <div class="w-full md:w-1/2 h-1/2 md:h-full relative overflow-hidden group">
+                <img src="./intake_clogged.png" class="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700" onerror="this.src='https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=80&w=1000'">
+                <div class="absolute inset-0 bg-brand-blue/20 mix-blend-overlay"></div>
+            </div>
+            
+            <!-- Content Side -->
+            <div class="w-full md:w-1/2 h-1/2 md:h-full flex items-center justify-center p-8 relative bg-gradient-to-br from-brand-blue/20 to-brand-dark border-t md:border-t-0 md:border-l border-white/10">
+                <div class="absolute top-1/2 right-10 transform -translate-y-1/2 text-[30vh] md:text-[40vh] font-black text-white/5 select-none z-0">5</div>
+                
+                <div class="relative z-10 text-center md:text-left max-w-xl">
+                    <div class="slide-content slide-content-delay-1 text-2xl md:text-3xl text-brand-orange font-bold mb-4 uppercase tracking-wider drop-shadow-md">Why was there no lubrication?</div>
+                    <div class="slide-content slide-content-delay-2">
+                        <div class="inline-block p-4 rounded-full bg-brand-blue/10 border border-brand-blue/30 mb-6">
+                            <i class="fa-solid fa-filter-circle-xmark text-6xl text-brand-blue"></i>
+                        </div>
+                        <h2 class="text-xl font-bold text-brand-blue mb-2 uppercase tracking-widest">The Root Cause</h2>
+                        <h1 class="text-4xl md:text-6xl font-black text-white leading-tight">
+                            Oil pump intake clogged with shavings.
+                        </h1>
+                        <p class="mt-6 text-lg text-slate-300 border-l-4 border-brand-orange pl-4 italic">
+                            Now we know we need a filter, not just a fuse.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 11: Fix Comparison -->
+        <section class="min-w-full h-full snap-start flex flex-col md:flex-row h-full">
+            <!-- Left: Band Aid -->
+            <div class="w-full md:w-1/2 h-1/2 md:h-full bg-slate-800 flex flex-col items-center justify-center p-8 border-b md:border-b-0 md:border-r border-white/10 group hover:bg-slate-700 transition-colors relative overflow-hidden">
+                <img src="./fuse2.png" class="absolute inset-0 w-full h-full object-cover opacity-10 group-hover:opacity-20 transition-opacity" onerror="this.src='https://images.unsplash.com/photo-1590248443329-373dc6f82348?auto=format&fit=crop&q=80&w=1000'">
+                <div class="slide-content slide-content-delay-1 text-center opacity-60 group-hover:opacity-100 transition-opacity relative z-10">
+                    <i class="fa-solid fa-bandage text-6xl mb-4 text-slate-400"></i>
+                    <h3 class="text-2xl font-bold uppercase mb-4 text-slate-300">Symptom Fix</h3>
+                    <p class="text-4xl font-bold mb-2 text-white">Replace Fuse</p>
+                    <p class="text-red-400 font-mono text-sm mt-4 bg-red-400/10 px-4 py-2 rounded-full inline-block">Result: Breaks again tomorrow.</p>
+                </div>
+            </div>
+            
+            <!-- Right: Real Fix -->
+            <div class="w-full md:w-1/2 h-1/2 md:h-full bg-brand-orange/20 flex flex-col items-center justify-center p-8 relative overflow-hidden group">
+                <img src="https://images.unsplash.com/photo-1581092160562-40aa08e78837?auto=format&fit=crop&q=80&w=1920" class="absolute inset-0 w-full h-full object-cover opacity-10 group-hover:opacity-20 transition-opacity">
+                <div class="absolute inset-0 bg-brand-orange/10 animate-pulse"></div>
+                <div class="slide-content slide-content-delay-2 text-center relative z-10">
+                    <i class="fa-solid fa-screwdriver-wrench text-6xl text-brand-orange mb-4 drop-shadow-md"></i>
+                    <h3 class="text-2xl font-bold text-brand-orange uppercase mb-4">Real Fix</h3>
+                    <p class="text-5xl font-black text-white mb-2 drop-shadow-md">Attach Filter</p>
+                    <p class="text-green-400 font-mono text-sm mt-4 bg-green-400/10 px-4 py-2 rounded-full inline-block border border-green-400/20">Result: Problem Solved Forever.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 12: Conclusion -->
+        <section class="min-w-full h-full snap-start flex flex-col justify-center items-center relative p-8 text-center bg-brand-dark overflow-hidden">
+            <!-- Background Image -->
+             <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80&w=1920" class="absolute inset-0 w-full h-full object-cover opacity-20">
+             <div class="absolute inset-0 img-overlay"></div>
+
+            <div class="relative z-10">
+                <div class="slide-content slide-content-delay-1 mb-8">
+                     <i class="fa-solid fa-people-group text-8xl text-brand-blue mb-4 drop-shadow-[0_0_15px_rgba(56,189,248,0.5)]"></i>
+                </div>
+                <h1 class="slide-content slide-content-delay-2 text-5xl md:text-7xl font-black mb-6 text-white drop-shadow-xl">
+                    Stop Fixing Symptoms.
+                </h1>
+                <p class="slide-content slide-content-delay-3 text-2xl md:text-3xl text-slate-300 max-w-2xl mx-auto font-light">
+                    Ask <span class="text-brand-orange font-bold">"Why?"</span> until you find the source.
+                </p>
+            </div>
+        </section>
+
+        <!-- Slide 13: Thank You -->
+        <section class="min-w-full h-full snap-start flex flex-col justify-center items-center relative p-8 text-center bg-brand-dark overflow-hidden">
+            <!-- Background Image -->
+            <img src="https://images.unsplash.com/photo-1499750310159-57751c6e9f1a?auto=format&fit=crop&q=80&w=1920" class="absolute inset-0 w-full h-full object-cover opacity-30 grayscale hover:grayscale-0 transition-all duration-1000">
+            <div class="absolute inset-0 img-overlay"></div>
+
+            <div class="relative z-10 max-w-4xl w-full">
+                <h1 class="slide-content slide-content-delay-1 text-6xl md:text-9xl font-black mb-8 text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-brand-orange">
+                    Thank You!
+                </h1>
+
+                <button onclick="document.getElementById('slider').scrollTo({left: 0, behavior: 'smooth'})" class="slide-content slide-content-delay-3 px-8 py-4 rounded-full bg-brand-blue text-brand-dark font-bold text-lg hover:bg-white hover:scale-105 transition-all shadow-[0_0_20px_rgba(56,189,248,0.4)]">
+                    <i class="fa-solid fa-rotate-right mr-2"></i> Restart Presentation
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        const slider = document.getElementById('slider');
+        const progressBar = document.getElementById('progressBar');
+        const slideIndicators = document.getElementById('slideIndicators');
+        const currentSlideText = document.getElementById('currentSlideText');
+        const totalSlidesText = document.getElementById('totalSlidesText');
+        
+        // Initialize Interactive Slide Numbers
+        function initSlideIndicators() {
+            const slides = document.querySelectorAll('section');
+            slideIndicators.innerHTML = ''; // Clear existing
+            totalSlidesText.textContent = slides.length; // Set total text
+            
+            slides.forEach((slide, index) => {
+                const btn = document.createElement('button');
+                btn.textContent = index + 1;
+                btn.className = `w-10 h-10 rounded-full flex shrink-0 items-center justify-center text-sm font-bold transition-all border border-transparent hover:bg-white/10 hover:text-white text-white/50`;
+                btn.onclick = () => {
+                    const slideWidth = slider.clientWidth;
+                    slider.scrollTo({ left: index * slideWidth, behavior: 'smooth' });
+                };
+                slideIndicators.appendChild(btn);
+            });
+        }
+        
+        // Intersection Observer for Animation Trigger
+        const observerOptions = {
+            root: slider,
+            threshold: 0.5
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active-slide');
+                    updateProgress(entry.target);
+                } else {
+                    entry.target.classList.remove('active-slide');
+                }
+            });
+        }, observerOptions);
+
+        // Init
+        initSlideIndicators();
+        document.querySelectorAll('section').forEach(section => {
+            observer.observe(section);
+        });
+
+        // Navigation Functions
+        function nextSlide() {
+            const slideWidth = slider.clientWidth;
+            slider.scrollBy({ left: slideWidth, behavior: 'smooth' });
+        }
+
+        function prevSlide() {
+            const slideWidth = slider.clientWidth;
+            slider.scrollBy({ left: -slideWidth, behavior: 'smooth' });
+        }
+
+        // Update Progress Bar & Active Indicator
+        function updateProgress(activeSlide) {
+            const slides = document.querySelectorAll('section');
+            const total = slides.length;
+            const index = Array.from(slides).indexOf(activeSlide);
+            
+            // Update Text Counter
+            currentSlideText.textContent = index + 1;
+
+            // Update Bar
+            const percentage = ((index + 1) / total) * 100;
+            progressBar.style.width = `${percentage}%`;
+
+            // Update Indicators
+            const buttons = slideIndicators.querySelectorAll('button');
+            buttons.forEach((btn, btnIndex) => {
+                if (btnIndex === index) {
+                    btn.classList.add('nav-btn-active');
+                    btn.classList.remove('text-white/50');
+                    // Scroll indicator into view if it's off-screen (useful for mobile)
+                    btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                } else {
+                    btn.classList.remove('nav-btn-active');
+                    btn.classList.add('text-white/50');
+                }
+            });
+        }
+
+        // Keyboard Navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') nextSlide();
+            if (e.key === 'ArrowLeft') prevSlide();
+        });
+        
+        // Re-init on resize to keep scroll positions accurate
+        window.addEventListener('resize', initSlideIndicators);
+    </script>
+</body>
+</html>
